@@ -31,3 +31,12 @@ const dismissed = ref(false)
     </button>
   </div>
 </template>
+
+<style scoped>
+a {
+  color: var(--color-kteq-black);
+}
+a:hover {
+  color: var(--color-kteq-gray);
+}
+</style>
