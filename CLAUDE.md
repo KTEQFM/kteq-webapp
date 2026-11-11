@@ -21,7 +21,17 @@ There is no backend server. All content is stored as JSON files in `content/` an
 All content lives in `content/*.json`. The Vue admin panel at `/#/admin` reads and writes these files through the GitHub API using a Personal Access Token. Saves commit directly to the repo, triggering a GitHub Pages rebuild (~60 seconds).
 
 ### Persistent audio player
-The player lives in `App.vue` outside `<RouterView>` so the audio stream survives navigation. The `Audio` element is a singleton managed by the `player` Pinia store — never re-instantiated. Stream URL: `https://kteq-proxy.kteq.workers.dev` (Cloudflare Worker proxying HTTPS to the university Icecast server).
+The player lives in `App.vue` outside `<RouterView>` so the audio stream survives navigation. The `Audio` element is a singleton managed by the `player` Pinia store — never re-instantiated.
+
+### Stream sources
+`content/settings.json` holds two streams and a manual switch:
+
+- `streams.aiir` — Aiir Streaming (hosted Icecast), `https://stream.aiir.com/0gmznstk33kuv`. The normal source. Always store this base address; Aiir redirects it to a tokenized address that expires within minutes.
+- `streams.local` — the station's own Icecast via the Cloudflare Worker (`https://kteq-proxy.kteq.workers.dev`). Backup only.
+- `streamSource` — `"aiir"` or `"local"`, switched by hand in Admin → Settings.
+- `metadataUrl` — the Worker's `/metadata` route. The player calls it with `?source=aiir|local` so titles come from the same stream the listener hears.
+
+There is deliberately no automatic failover: the two streams run at different delays. `activeStream()` in `src/stores/player.ts` is the single place that picks the URL. The Worker source is in `worker/` and deploys separately through Cloudflare, not with the site.
 
 ### Campaign phase system
 A `campaignPhase` value in `content/settings.json` drives conditional rendering across the site. "(Re)Discover KTEQ" is the internal campaign name; the public-facing messaging differs per phase:
@@ -36,7 +46,7 @@ The CTA system supports three action types: `'play'` (starts the stream), `'mail
 The station uses Aiir/PlayoutONE Pro for automation and scheduling, but the website currently does NOT connect to Aiir's APIs. Schedule and show data is maintained manually in JSON. This may change in the future when the Aiir Platform CMS subscription question is resolved. The "now on air" display is schedule-based (looks up current show from schedule.json by day/time).
 
 ### GitHub target
-Repository: `kteq/kteq-web55` on github.com. The `useGitHub` composable at `src/composables/useGitHub.ts` has `OWNER` and `REPO` constants.
+Repository: `KTEQFM/kteq-webapp` on github.com, in the university's GitHub Enterprise account (SSO). The `useGitHub` composable at `src/composables/useGitHub.ts` has `OWNER` and `REPO` constants. The previous version of the site is `radonjaws/kteq-web55`, which serves kteq.org until the custom domain moves here.
 
 ## Brand & Design
 
@@ -174,4 +184,4 @@ pnpm dev        # → http://localhost:5173
 pnpm build      # production build to dist/
 ```
 
-Admin panel testing requires a GitHub PAT with Contents read/write access to the `kteq/kteq-web55` repo. Enter it at `/#/admin/login`.
+Admin panel testing requires a GitHub PAT with Contents read/write access to the `KTEQFM/kteq-webapp` repo, authorized for KTEQFM SSO. Enter it at `/#/admin/login`.

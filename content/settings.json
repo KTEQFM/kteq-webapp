@@ -14,8 +14,12 @@
     "history": false,
     "blog": true
   },
-  "streamUrl": "https://kteq-proxy.kteq.workers.dev",
-  "streamFallbackUrl": "http://kteq-streamer.sdsmt.edu:8000/kteq",
+  "streamSource": "aiir",
+  "streams": {
+    "aiir": "https://stream.aiir.com/0gmznstk33kuv",
+    "local": "https://kteq-proxy.kteq.workers.dev"
+  },
+  "metadataUrl": "https://kteq-proxy.kteq.workers.dev/metadata",
   "stationName": "KTEQ-FM 91.3",
   "stationTagline": "Rapid City Alternative Radio",
   "stationDescription": "Established in 1971, KTEQ is South Dakota Mines' student-run alternative radio station. ",

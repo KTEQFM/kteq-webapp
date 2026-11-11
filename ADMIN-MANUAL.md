@@ -222,10 +222,22 @@ Settings are managed by the programming director or station advisor. Most studen
 
 | Setting | What it does |
 |---------|-------------|
-| **Stream URL** | Where the player connects. Don't change unless the stream moves |
+| **Active stream** | Which stream the player uses: Aiir Streaming (normal) or the station server (backup). See **Switching the stream** below |
+| **Stream URLs** | The addresses for both streams and for now-playing info. Don't change unless a stream moves |
 | **Banner Text** | Shows an announcement across the top of every page. Empty = hidden |
 | **Donate URL** | Where the Donate button links (CARA page) |
 | **Social Links** | Facebook, Instagram, TuneIn URLs |
+
+#### Switching the stream
+
+The site plays one stream at a time. Normally that's Aiir Streaming. The station server stream is a backup for when Aiir is down.
+
+1. Confirm Aiir is the problem: open `https://stream.aiir.com/0gmznstk33kuv` in a new browser tab. If it doesn't play, Aiir is down. If it plays, the problem is elsewhere and switching won't help.
+2. Go to **Admin → Settings → Stream**, select **Station server**, and click **Save**.
+3. Wait about a minute for the site to update, then reload kteq.org and press play to check it.
+4. When the Aiir address plays again, select **Aiir Streaming** and save.
+
+Listeners who are already playing stay on the old stream until they press play again. The two streams run a few seconds apart, which is why the site never switches on its own. The station server stream only works while the station's Icecast server is running.
 
 **Menu settings** (via the Menu editor):
 
@@ -468,8 +480,12 @@ Each day contains an array of time slots:
 ```json
 {
   "activeCampaign": "rediscover-2026",
-  "streamUrl": "https://kteq-proxy.kteq.workers.dev",
-  "streamFallbackUrl": "http://kteq-streamer.sdsmt.edu:8000/kteq",
+  "streamSource": "aiir",
+  "streams": {
+    "aiir": "https://stream.aiir.com/0gmznstk33kuv",
+    "local": "https://kteq-proxy.kteq.workers.dev"
+  },
+  "metadataUrl": "https://kteq-proxy.kteq.workers.dev/metadata",
   "stationName": "KTEQ-FM 91.3",
   "bannerText": "",
   "bannerUrl": "",
@@ -487,6 +503,10 @@ Each day contains an array of time slots:
 }
 ```
 
+- `streamSource`: `"aiir"` (normal) or `"local"` (station server backup). Set from Admin → Settings
+- `streams.aiir`: the base Aiir address. Never paste the longer address it redirects to; it expires within minutes
+- `streams.local`: the Cloudflare Worker address for the station's Icecast server. Must be `https://`
+- `metadataUrl`: the Worker's `/metadata` address. The player adds the active source to it, so titles match the stream being played
 - `activeCampaign`: slug of the active campaign file in `content/campaigns/`. Changing this switches everything the campaign controls (phase, hero, countdown)
 - `logoUrl`: path starting with `/images/brand/`. Empty string = "K" text fallback
 - `navLinks`: set any value to `false` to hide that link sitewide (useful during maintenance)
@@ -823,9 +843,10 @@ Two `\n\n` = paragraph break. One `\n` = line break.
 
 ### The player says "Stream unavailable"
 
-- The stream or proxy is probably down — not a website issue
-- Try the TuneIn link to verify
-- Contact the station advisor if the stream itself is working
+- The stream is probably down, not the website
+- Check which stream is active in **Admin → Settings → Stream**, then open that stream's address in a new tab to see whether it plays
+- If Aiir is down, switch to the station server (see **Switching the stream** in Section 3)
+- Contact the station advisor if the active stream plays in a tab but not on the site
 
 ### Admin panel won't let me sign in
 

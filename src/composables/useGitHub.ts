@@ -1,9 +1,10 @@
 import { ref } from 'vue'
 
-// Repo location. When the repo moves to the kteq organization, change OWNER
-// to 'kteq' (see ORG-MIGRATION-CHECKLIST.md).
-export const OWNER = 'radonjaws'
-export const REPO = 'kteq-web55'
+// Repo location: the KTEQFM organization under the university's GitHub
+// Enterprise account. The org uses SSO, so admin tokens must be authorized
+// for KTEQFM ("Configure SSO") before they can read or save content.
+export const OWNER = 'KTEQFM'
+export const REPO = 'kteq-webapp'
 const BRANCH = 'main'
 
 interface GitHubFile {

@@ -15,5 +15,5 @@ export default defineConfig({
     }
   },
   // VITE_BASE_URL=/kteq-web55/ while on the project URL, / once kteq.org DNS is live
-  base: process.env.VITE_BASE_URL ?? '/'
+  base: process.env.VITE_BASE_URL || '/'
 })

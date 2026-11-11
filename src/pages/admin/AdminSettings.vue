@@ -15,8 +15,10 @@ const sha = ref('')
 const rawContent = ref<any>(null)
 
 const form = reactive({
-  streamUrl: '',
-  streamFallbackUrl: '',
+  streamSource: 'aiir' as 'aiir' | 'local',
+  streamAiirUrl: '',
+  streamLocalUrl: '',
+  metadataUrl: '',
   stationName: '',
   stationTagline: '',
   stationDescription: '',
@@ -39,8 +41,11 @@ onMounted(async () => {
     sha.value = fileSha
     rawContent.value = content
     Object.assign(form, {
-      streamUrl: content.streamUrl,
-      streamFallbackUrl: content.streamFallbackUrl,
+      streamSource: content.streamSource === 'local' ? 'local' : 'aiir',
+      streamAiirUrl: content.streams?.aiir ?? '',
+      // Older settings files kept the station stream in `streamUrl`
+      streamLocalUrl: content.streams?.local ?? content.streamUrl ?? '',
+      metadataUrl: content.metadataUrl ?? '',
       stationName: content.stationName,
       stationTagline: content.stationTagline,
       stationDescription: content.stationDescription,
@@ -60,12 +65,18 @@ onMounted(async () => {
 })
 
 async function handleSave() {
+  // Preserve all fields (including those owned by other editors), minus the
+  // single-stream fields the streams block replaced
+  const { streamUrl: _oldStream, streamFallbackUrl: _oldFallback, ...preserved } = rawContent.value ?? {}
   const newSha = await save('content/settings.json', {
-    // Preserve all fields (including those owned by other editors)
-    ...rawContent.value,
+    ...preserved,
     // Override with this editor's fields
-    streamUrl: form.streamUrl,
-    streamFallbackUrl: form.streamFallbackUrl,
+    streamSource: form.streamSource,
+    streams: {
+      aiir: form.streamAiirUrl.trim(),
+      local: form.streamLocalUrl.trim(),
+    },
+    metadataUrl: form.metadataUrl.trim(),
     stationName: form.stationName,
     stationTagline: form.stationTagline,
     stationDescription: form.stationDescription,
@@ -247,24 +258,53 @@ async function handleSave() {
           <h2 class="mb-5 font-display text-base font-semibold text-kteq-white">Stream</h2>
           <div class="space-y-4">
 
+            <fieldset>
+              <legend class="mb-1.5 block font-display text-sm font-medium text-kteq-light">Active stream</legend>
+              <div class="grid gap-2 sm:grid-cols-2">
+                <label
+                  class="flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors"
+                  :class="form.streamSource === 'aiir' ? 'border-kteq-yellow/50 bg-kteq-void' : 'border-kteq-gray/30 hover:border-kteq-yellow/30'"
+                >
+                  <input type="radio" value="aiir" v-model="form.streamSource" class="mt-1 accent-kteq-yellow" />
+                  <span>
+                    <span class="block font-display text-sm text-kteq-white">Aiir Streaming</span>
+                    <span class="block text-xs text-kteq-muted">Normal setting</span>
+                  </span>
+                </label>
+                <label
+                  class="flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors"
+                  :class="form.streamSource === 'local' ? 'border-kteq-red/50 bg-kteq-void' : 'border-kteq-gray/30 hover:border-kteq-yellow/30'"
+                >
+                  <input type="radio" value="local" v-model="form.streamSource" class="mt-1 accent-kteq-yellow" />
+                  <span>
+                    <span class="block font-display text-sm text-kteq-white">Station server</span>
+                    <span class="block text-xs text-kteq-muted">Backup, for when Aiir is down</span>
+                  </span>
+                </label>
+              </div>
+              <p class="mt-1.5 text-xs text-kteq-muted">
+                The player uses only the stream selected here. After you save, the site takes about a minute to update,
+                and anyone already listening stays on the old stream until they press play again.
+                Switch back to Aiir as soon as it's working.
+              </p>
+            </fieldset>
+
             <div>
-              <label class="mb-1.5 block font-display text-sm font-medium text-kteq-light">Primary Stream URL</label>
-              <input
-                type="url"
-                v-model="form.streamUrl"
-                class="w-full rounded-md border border-kteq-gray/50 bg-kteq-void px-3 py-2 font-mono text-sm text-kteq-white focus:border-kteq-yellow/50 focus:outline-none focus:ring-1 focus:ring-kteq-yellow/50 transition-colors"
-              />
-              <p class="mt-1.5 text-xs text-kteq-muted">Cloudflare Worker proxy (HTTPS). Change with care — this is what the player uses.</p>
+              <label class="mb-1.5 block font-display text-sm font-medium text-kteq-light">Aiir stream URL</label>
+              <input type="url" v-model="form.streamAiirUrl" class="w-full rounded-md border border-kteq-gray/50 bg-kteq-void px-3 py-2 font-mono text-sm text-kteq-white focus:border-kteq-yellow/50 focus:outline-none focus:ring-1 focus:ring-kteq-yellow/50 transition-colors" />
+              <p class="mt-1.5 text-xs text-kteq-muted">The short address from the Aiir Streaming dashboard (https://stream.aiir.com/…). Don't use the longer address it redirects to; that one expires within minutes.</p>
             </div>
 
             <div>
-              <label class="mb-1.5 block font-display text-sm font-medium text-kteq-light">Fallback Stream URL</label>
-              <input
-                type="url"
-                v-model="form.streamFallbackUrl"
-                class="w-full rounded-md border border-kteq-gray/50 bg-kteq-void px-3 py-2 font-mono text-sm text-kteq-white focus:border-kteq-yellow/50 focus:outline-none focus:ring-1 focus:ring-kteq-yellow/50 transition-colors"
-              />
-              <p class="mt-1.5 text-xs text-kteq-muted">Direct Icecast URL (HTTP, may not work in all browsers).</p>
+              <label class="mb-1.5 block font-display text-sm font-medium text-kteq-light">Station server stream URL</label>
+              <input type="url" v-model="form.streamLocalUrl" class="w-full rounded-md border border-kteq-gray/50 bg-kteq-void px-3 py-2 font-mono text-sm text-kteq-white focus:border-kteq-yellow/50 focus:outline-none focus:ring-1 focus:ring-kteq-yellow/50 transition-colors" />
+              <p class="mt-1.5 text-xs text-kteq-muted">The Cloudflare Worker address for the station's own Icecast server. Must start with https://; browsers block plain http:// streams on kteq.org.</p>
+            </div>
+
+            <div>
+              <label class="mb-1.5 block font-display text-sm font-medium text-kteq-light">Now-playing URL</label>
+              <input type="url" v-model="form.metadataUrl" class="w-full rounded-md border border-kteq-gray/50 bg-kteq-void px-3 py-2 font-mono text-sm text-kteq-white focus:border-kteq-yellow/50 focus:outline-none focus:ring-1 focus:ring-kteq-yellow/50 transition-colors" />
+              <p class="mt-1.5 text-xs text-kteq-muted">The Cloudflare Worker's /metadata address. Track titles automatically follow whichever stream is active.</p>
             </div>
 
           </div>

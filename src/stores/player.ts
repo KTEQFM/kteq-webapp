@@ -14,7 +14,7 @@ const EMPTY: NowPlaying = { title: '', artist: '', song: '', listeners: 0 }
 // ── ICY metadata parser ───────────────────────────────────────────────────────
 // Opens a fresh connection to the stream, reads until the first ICY metadata
 // block (at byte offset `icy-metaint`), parses StreamTitle, then closes.
-// Returns null if the stream doesn't advertise icy-metaint (old proxy).
+// Returns null if the stream doesn't advertise icy-metaint or blocks CORS.
 async function readIcyMetadata(streamUrl: string): Promise<NowPlaying | null> {
   let reader: ReadableStreamDefaultReader<Uint8Array> | null = null
   try {
@@ -66,12 +66,13 @@ async function readIcyMetadata(streamUrl: string): Promise<NowPlaying | null> {
   }
 }
 
-// ── Stats-endpoint fallback ───────────────────────────────────────────────────
-// Polls the Worker's /metadata route, which proxies the Icecast JSON stats.
-async function readStatsMetadata(streamUrl: string): Promise<NowPlaying | null> {
+// ── Worker metadata endpoint ──────────────────────────────────────────────────
+// Polls the Worker's /metadata route. `source` tells the Worker which stream
+// to read titles from, so they match the audio the listener hears.
+async function readStatsMetadata(metadataUrl: string, source: StreamSource): Promise<NowPlaying | null> {
   try {
-    const url = new URL(streamUrl)
-    url.pathname = '/metadata'
+    const url = new URL(metadataUrl)
+    url.searchParams.set('source', source)
     const res = await fetch(url.toString(), { cache: 'no-store' })
     if (!res.ok) return null
     const data = await res.json()
@@ -85,6 +86,19 @@ async function readStatsMetadata(streamUrl: string): Promise<NowPlaying | null> 
   } catch {
     return null
   }
+}
+
+// ── Stream selection ──────────────────────────────────────────────────────────
+// settings.json holds both streams; `streamSource` picks one. It's switched by
+// hand in Admin → Settings. There is deliberately no automatic failover: the
+// two streams run at different delays, so switching mid-listen would jump.
+export type StreamSource = 'aiir' | 'local'
+
+export function activeStream(settings: any): { source: StreamSource; url: string } | null {
+  const source: StreamSource = settings?.streamSource === 'local' ? 'local' : 'aiir'
+  // `streamUrl` is the single-stream field used before Nov 2026
+  const url: string | undefined = settings?.streams?.[source] || settings?.streamUrl
+  return url ? { source, url } : null
 }
 
 function parseTitle(raw: string, listeners: number): NowPlaying {
@@ -143,17 +157,19 @@ export const usePlayerStore = defineStore('player', () => {
   let pollTimer: ReturnType<typeof setInterval> | null = null
 
   async function fetchMetadata() {
-    const url = (useContentStore().settings as any).streamUrl as string | undefined
-    if (!url) return
+    const settings = useContentStore().settings as any
+    const active = activeStream(settings)
+    if (!active) return
 
-    // Stats endpoint is the primary source — it always reflects current track.
-    // ICY stream parsing is the fallback: useful when the /metadata route isn't
-    // available, but ICY blocks can be empty between track transitions.
-    let result = await readStatsMetadata(url)
+    // The Worker's /metadata route is the main source for both streams.
+    let result = settings.metadataUrl
+      ? await readStatsMetadata(settings.metadataUrl as string, active.source)
+      : null
 
-    if (!result?.title) {
-      // Stats came back empty or failed — try reading directly from the stream
-      const icy = await readIcyMetadata(url)
+    // On the station stream, the browser can also read titles straight from the
+    // audio (the Worker adds CORS headers). Aiir's stream doesn't allow that.
+    if (!result?.title && active.source === 'local') {
+      const icy = await readIcyMetadata(active.url)
       if (icy?.title) result = icy
     }
 
@@ -194,24 +210,17 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   async function play() {
-    const settings    = useContentStore().settings as any
-    const primaryUrl  = settings.streamUrl as string | undefined
-    const fallbackUrl = settings.streamFallbackUrl as string | undefined
+    const active = activeStream(useContentStore().settings)
 
-    if (!primaryUrl) {
+    if (!active) {
       hasError.value = true; errorMessage.value = 'No stream URL configured'; return
     }
 
     hasError.value  = false
     isLoading.value = true
 
-    if (await tryPlay(primaryUrl)) return
+    if (await tryPlay(active.url)) return
     if (errorMessage.value === 'Click play to start listening') return
-
-    // HTTP fallback — works on local dev; blocked by browsers on HTTPS pages
-    if (fallbackUrl && fallbackUrl !== primaryUrl) {
-      if (await tryPlay(fallbackUrl)) return
-    }
 
     isLoading.value    = false
     hasError.value     = true
